@@ -1,0 +1,201 @@
+version: 2
+
+sources:
+  - name: raw_harrys
+    tables:
+      - name: camera
+        columns:
+          - name: serialnumber
+            data_type: varchar
+          - name: camera
+            data_type: number
+
+      - name: dmcserial
+        columns:
+          - name: serialnumber
+            data_type: varchar
+          - name: timestamp
+            data_type: varchar
+          - name: dmc
+            data_type: varchar
+          - name: m1x
+            data_type: number
+          - name: m1x_nest
+            data_type: number
+          - name: m2x
+            data_type: number
+          - name: m2x_nest
+            data_type: number
+          - name: m3x
+            data_type: number
+          - name: m3x_nest
+            data_type: varchar
+          - name: serialnumbertrimmer
+            data_type: varchar
+          - name: string
+            data_type: number
+
+      - name: measurements
+        columns:
+          - name: serialnumber
+            data_type: varchar
+          - name: measurementname
+            data_type: varchar
+          - name: measurementvalue
+            data_type: number
+          - name: resultstatus
+            data_type: number
+          - name: controllername
+            data_type: varchar
+
+      - name: measurments_stg
+        columns:
+          - name: serialnumber
+            data_type: float
+          - name: measurementname
+            data_type: varchar
+          - name: measurementvalue
+            data_type: float
+          - name: resultstatus
+            data_type: varchar
+          - name: camera
+            data_type: varchar
+          - name: kavitaet_komplett
+            data_type: varchar
+          - name: kavitaet
+            data_type: float
+          - name: m1x
+            data_type: number
+          - name: m1x_nest
+            data_type: number
+          - name: m2x
+            data_type: number
+          - name: m2x_nest
+            data_type: number
+          - name: m3x
+            data_type: number
+          - name: m3x_nest
+            data_type: varchar
+          - name: timestamp
+            data_type: number
+          - name: output
+            data_type: varchar
+          - name: status
+            data_type: varchar
+          - name: qualification_type
+            data_type: varchar
+          - name: min
+            data_type: float
+          - name: max
+            data_type: float
+          - name: station
+            data_type: varchar
+          - name: kamera
+            data_type: varchar
+          - name: art
+            data_type: varchar
+          - name: top_group
+            data_type: varchar
+          - name: outliers_below_ut
+            data_type: float
+          - name: outliers_above_ot
+            data_type: float
+          - name: attribut
+            data_type: varchar
+          - name: needs_to_be_qualified_by
+            data_type: varchar
+          - name: outliers
+            data_type: varchar
+          - name: modul
+            data_type: float
+          - name: achsenest
+            data_type: varchar
+          - name: dmc
+            data_type: float
+          - name: string
+            data_type: varchar
+          - name: kavitaet_station
+            data_type: varchar
+          - name: achse
+            data_type: varchar
+          - name: nest
+            data_type: float
+          - name: group
+            data_type: varchar
+          - name: dmc_kopie_1
+            data_type: number
+          - name: dmc_kopie_2
+            data_type: float
+          - name: sortierung_modul
+            data_type: float
+          - name: modul_camera
+            data_type: varchar
+          - name: modul_camera_lubra_modul_coil
+            data_type: varchar
+          - name: controllername
+            data_type: varchar
+          - name: controllername_1
+            data_type: varchar
+          - name: schnitt
+            data_type: varchar
+          - name: modul_2te_ebene
+            data_type: float
+          - name: achsenest_2te_ebene
+            data_type: varchar
+          - name: coil
+            data_type: varchar
+
+      - name: settings
+        columns:
+          - name: id
+            data_type: number
+          - name: controllername
+            data_type: varchar
+          - name: parametername
+            data_type: varchar
+          - name: parametersetnr
+            data_type: number
+          - name: min
+            data_type: number
+          - name: max
+            data_type: number
+          - name: version
+            data_type: number
+          - name: timestamp
+            data_type: varchar
+
+      - name: zeichnung
+        columns:
+          - name: attribut
+            data_type: varchar
+          - name: controllername
+            data_type: varchar
+          - name: output
+            data_type: varchar
+          - name: group
+            data_type: varchar
+          - name: status
+            data_type: varchar
+          - name: qualification_type
+            data_type: varchar
+          - name: needs_to_be_qualified_by
+            data_type: varchar
+          - name: min
+            data_type: number
+          - name: max
+            data_type: number
+          - name: station
+            data_type: varchar
+          - name: kamera
+            data_type: varchar
+          - name: art
+            data_type: varchar
+          - name: top_group
+            data_type: varchar
+          - name: outliers_below_ut
+            data_type: number
+          - name: outliers_above_ot
+            data_type: number
+          - name: schnitt
+            data_type: varchar
+

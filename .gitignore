@@ -1,0 +1,6 @@
+.venv
+.tmp
+
+dbt_packages
+logs
+target
