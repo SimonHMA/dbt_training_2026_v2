@@ -1,0 +1,296 @@
+let
+    // Maximalen Timestamp holen
+    MaxTimestampSource = Odbc.Query("dsn=MPL1", "
+        SELECT 
+            MAX(Timestamp) AS MaxTimestamp
+        FROM camera_data.measurements
+    "),
+    MaxTimestampTable = Table.TransformColumnTypes(MaxTimestampSource, {{"MaxTimestamp", type datetime}}),
+    MaxTimestamp = MaxTimestampTable{0}[MaxTimestamp],
+
+    // Filter: letzte 30 Minuten
+    FilterStart = MaxTimestamp - #duration(0, 0, 30, 0),
+    FilterEnd = MaxTimestamp,
+
+    // Hauptabfrage: Messwerte im Zeitbereich
+    measurements_ = Odbc.Query("dsn=MPL1", "
+        SELECT 
+            SerialNumber,
+            MeasurementName,
+            MeasurementValue,
+            ResultStatus,
+            ControllerName
+        FROM camera_data.measurements
+        WHERE Timestamp >= {ts '" & DateTime.ToText(FilterStart, "yyyy-MM-dd HH:mm:ss") & "'}
+          AND Timestamp <= {ts '" & DateTime.ToText(FilterEnd, "yyyy-MM-dd HH:mm:ss") & "'}
+    "),
+
+    // Grundtypen setzen
+    #"Geänderter Typ2" = Table.TransformColumnTypes(
+        measurements_,
+        {
+            {"SerialNumber", type text},
+            {"MeasurementName", type text},
+            {"MeasurementValue", type any},
+            {"ResultStatus", type text},
+            {"ControllerName", type text}
+        }
+    ),
+
+    // Werte ersetzen
+    #"Ersetzter Wert" = Table.ReplaceValue(#"Geänderter Typ2", "-2", "Not Tested", Replacer.ReplaceText, {"ResultStatus"}),
+    #"Gefilterte Zeilen1" = Table.SelectRows(#"Ersetzter Wert", each [ResultStatus] <> "2"),
+    #"Ersetzter Wert1" = Table.ReplaceValue(#"Gefilterte Zeilen1", "-1", "Pos Adj Error", Replacer.ReplaceText, {"ResultStatus"}),
+    #"Ersetzter Wert2" = Table.ReplaceValue(#"Ersetzter Wert1", "0", "Bad", Replacer.ReplaceText, {"ResultStatus"}),
+    #"Ersetzter Wert3" = Table.ReplaceValue(#"Ersetzter Wert2", "1", "Good", Replacer.ReplaceText, {"ResultStatus"}),
+    #"Ersetzter Wert4" = Table.ReplaceValue(#"Ersetzter Wert3", "2", "Not Evaluate", Replacer.ReplaceText, {"ResultStatus"}),
+
+    // Joins und Erweiterungen
+    #"Zusammengeführte Abfragen" = Table.NestedJoin(#"Ersetzter Wert4", {"SerialNumber"}, Camera, {"SerialNumber"}, "Camera", JoinKind.LeftOuter),
+    #"Erweiterte Camera" = Table.ExpandTableColumn(#"Zusammengeführte Abfragen", "Camera", {"Camera"}, {"Camera.1"}),
+    #"Umbenannte Spalten" = Table.RenameColumns(#"Erweiterte Camera", {{"Camera.1", "Camera"}}),
+
+    #"Zusammengeführte Abfragen1" = Table.NestedJoin(#"Umbenannte Spalten", {"SerialNumber"}, Kavität, {"SerialNumber"}, "Kavität", JoinKind.LeftOuter),
+    #"Erweiterte Kavität" = Table.ExpandTableColumn(#"Zusammengeführte Abfragen1", "Kavität", {"Kavität_komplett", "Kavität", "Kavität_Station"}, {"Kavität_komplett", "Kavität.1", "Kavität_Station"}),
+    #"Umbenannte Spalten1" = Table.RenameColumns(#"Erweiterte Kavität", {{"Kavität.1", "Kavität"}}),
+
+    #"Zusammengeführte Abfragen2" = Table.NestedJoin(#"Umbenannte Spalten1", {"SerialNumber"}, dmcserial, {"SerialNumber"}, "dmcserial", JoinKind.LeftOuter),
+    #"Erweiterte dmcserial" = Table.ExpandTableColumn(#"Zusammengeführte Abfragen2", "dmcserial", {"DMC", "M1X", "M1X_Nest", "M2X", "M2X_Nest", "M3X", "M3X_Nest", "String", "Timestamp"}, {"DMC", "M1X", "M1X_Nest", "M2X", "M2X_Nest", "M3X", "M3X_Nest", "String", "Timestamp"}),
+
+    #"Zusammengeführte Abfragen3" = Table.NestedJoin(#"Erweiterte dmcserial", {"MeasurementName"}, Zeichnung, {"Attribut"}, "Zeichnung", JoinKind.LeftOuter),
+    #"Erweiterte Zeichnung" = Table.ExpandTableColumn(#"Zusammengeführte Abfragen3", "Zeichnung", {"Attribut", "ControllerName", "Output", "group", "Status", "Qualification Type", "Needs to be Qualified By:", "Min", "Max", "Station", "Kamera", "Art", "Top group", "Outliers below (UT)", "Outliers above (OT)", "Schnitt"}, {"Attribut", "ControllerName.1", "Output", "group", "Status", "Qualification Type", "Needs to be Qualified By:", "Min", "Max", "Station", "Kamera", "Art", "Top group", "Outliers below (UT)", "Outliers above (OT)", "Schnitt"}),
+
+    // Relevante Textspalten vorsorglich auf Text / nullable belassen
+    #"Textspalten bereinigt" = Table.TransformColumns(
+        #"Erweiterte Zeichnung",
+        {
+            {"SerialNumber", each if _ = null then null else Text.From(_), type text},
+            {"MeasurementName", each if _ = null then null else Text.From(_), type text},
+            {"ResultStatus", each if _ = null then null else Text.From(_), type text},
+            {"ControllerName", each if _ = null then null else Text.From(_), type text},
+            {"Camera", each if _ = null then null else Text.From(_), type text},
+            {"Kavität_komplett", each if _ = null then null else Text.From(_), type text},
+            {"Kavität", each if _ = null then null else Text.From(_), type text},
+            {"Kavität_Station", each if _ = null then null else Text.From(_), type text},
+            {"DMC", each if _ = null then null else Text.From(_), type text},
+            {"M1X", each if _ = null then null else Text.From(_), type text},
+            {"M1X_Nest", each if _ = null then null else Text.From(_), type text},
+            {"M2X", each if _ = null then null else Text.From(_), type text},
+            {"M2X_Nest", each if _ = null then null else Text.From(_), type text},
+            {"M3X", each if _ = null then null else Text.From(_), type text},
+            {"M3X_Nest", each if _ = null then null else Text.From(_), type text},
+            {"String", each if _ = null then null else Text.From(_), type text},
+            {"Attribut", each if _ = null then null else Text.From(_), type text},
+            {"ControllerName.1", each if _ = null then null else Text.From(_), type text},
+            {"Output", each if _ = null then null else Text.From(_), type text},
+            {"group", each if _ = null then null else Text.From(_), type text},
+            {"Status", each if _ = null then null else Text.From(_), type text},
+            {"Qualification Type", each if _ = null then null else Text.From(_), type text},
+            {"Needs to be Qualified By:", each if _ = null then null else Text.From(_), type text},
+            {"Station", each if _ = null then null else Text.From(_), type text},
+            {"Kamera", each if _ = null then null else Text.From(_), type text},
+            {"Art", each if _ = null then null else Text.From(_), type text},
+            {"Top group", each if _ = null then null else Text.From(_), type text},
+            {"Schnitt", each if _ = null then null else Text.From(_), type text}
+        }
+    ),
+
+    // Nummernspalten absichern
+    #"Nummernspalten bereinigt" = Table.TransformColumns(
+        #"Textspalten bereinigt",
+        {
+            {"MeasurementValue", each try Number.From(_) otherwise null, type nullable number},
+            {"Min", each try Number.From(_) otherwise null, type nullable number},
+            {"Max", each try Number.From(_) otherwise null, type nullable number},
+            {"Outliers below (UT)", each try Number.From(_) otherwise null, type nullable number},
+            {"Outliers above (OT)", each try Number.From(_) otherwise null, type nullable number}
+        }
+    ),
+
+    // Modul zuordnen
+    #"Modul hinzugefügt" = Table.AddColumn(
+        #"Nummernspalten bereinigt",
+        "Modul",
+        each 
+            if [MeasurementName] <> null and (
+               Text.StartsWith([MeasurementName], "TrimSubAss_") or
+               Text.StartsWith([MeasurementName], "Trimmer_Exposure") or
+               Text.StartsWith([MeasurementName], "Trimmer_Mounted") or
+               Text.StartsWith([MeasurementName], "TrimMount_Cosmetic") or
+               Text.StartsWith([MeasurementName], "Trimmer_Presence") or
+               Text.StartsWith([MeasurementName], "Trimmer_Defect") or
+               Text.StartsWith([MeasurementName], "Pin_Area") or
+               Text.StartsWith([MeasurementName], "Pin_Distance")) then [M2X]
+            else if [MeasurementName] <> null and (
+                    Text.StartsWith([MeasurementName], "Anode_") or
+                    Text.StartsWith([MeasurementName], "Blade_") or
+                    Text.StartsWith([MeasurementName], "Blade_UnderAnode") or
+                    Text.StartsWith([MeasurementName], "Anode_Defect") or
+                    Text.StartsWith([MeasurementName], "Blade_Count")) then [M3X]
+            else if [MeasurementName] <> null and (
+                    Text.StartsWith([MeasurementName], "Fin_") or
+                    Text.StartsWith([MeasurementName], "Lubra_") or
+                    Text.StartsWith([MeasurementName], "HardCap") or
+                    Text.StartsWith([MeasurementName], "HardGuard")) then [M1X]
+            else null,
+        type text
+    ),
+
+    // Nest zuordnen
+    #"Nest hinzugefügt" = Table.AddColumn(
+        #"Modul hinzugefügt",
+        "Nest",
+        each 
+            if [MeasurementName] <> null and (
+               Text.StartsWith([MeasurementName], "TrimSubAss_") or
+               Text.StartsWith([MeasurementName], "Trimmer_Exposure") or
+               Text.StartsWith([MeasurementName], "Trimmer_Mounted") or
+               Text.StartsWith([MeasurementName], "TrimMount_Cosmetic") or
+               Text.StartsWith([MeasurementName], "Trimmer_Presence") or
+               Text.StartsWith([MeasurementName], "Trimmer_Defect") or
+               Text.StartsWith([MeasurementName], "Pin_Area") or
+               Text.StartsWith([MeasurementName], "Pin_Distance")) then [M2X_Nest]
+            else if [MeasurementName] <> null and (
+                    Text.StartsWith([MeasurementName], "Anode_") or
+                    Text.StartsWith([MeasurementName], "Blade_") or
+                    Text.StartsWith([MeasurementName], "Blade_UnderAnode") or
+                    Text.StartsWith([MeasurementName], "Anode_Defect") or
+                    Text.StartsWith([MeasurementName], "Blade_Count")) then [M3X_Nest]
+            else if [MeasurementName] <> null and (
+                    Text.StartsWith([MeasurementName], "Fin_") or
+                    Text.StartsWith([MeasurementName], "Lubra_") or
+                    Text.StartsWith([MeasurementName], "HardCap") or
+                    Text.StartsWith([MeasurementName], "HardGuard")) then [M1X_Nest]
+            else null,
+        type text
+    ),
+
+    // Outlier-Spalte robust
+    #"Hinzugefügte benutzerdefinierte Spalte" = Table.AddColumn(
+        #"Nest hinzugefügt",
+        "Outliers",
+        each
+            let
+                mv = try Number.From([MeasurementValue]) otherwise null,
+                low = try Number.From([#"Outliers below (UT)"]) otherwise null,
+                high = try Number.From([#"Outliers above (OT)"]) otherwise null
+            in
+                if mv = null or low = null or high = null then null
+                else if mv < low or mv > high then "with Outliers"
+                else "without Outliers",
+        type text
+    ),
+
+    // Weitere Transformationen und Spaltenberechnungen
+    #"Geänderter Typ" = Table.TransformColumnTypes(#"Hinzugefügte benutzerdefinierte Spalte", {{"Modul", type text}, {"Nest", type text}, {"Outliers", type text}}),
+    #"Umbenannte Spalten2" = Table.RenameColumns(#"Geänderter Typ", {{"Nest", "AchseNest"}}),
+
+    #"Gefilterte Zeilen2" = Table.SelectRows(
+        #"Umbenannte Spalten2",
+        each 
+            [SerialNumber] <> "00000000000000000000000000000000" and
+            [MeasurementName] <> "CameraNR" and
+            [MeasurementName] <> "OCR" and
+            [MeasurementName] <> "OCR2"
+    ),
+
+    #"Hinzugefügte benutzerdefinierte Spalte1" = Table.AddColumn(
+        #"Gefilterte Zeilen2",
+        "Achse",
+        each
+            let
+                ersterBuchstabe = if [AchseNest] = null then null else Text.Start(Text.From([AchseNest]), 1)
+            in
+                if ersterBuchstabe = "L" or ersterBuchstabe = "R" then ersterBuchstabe else null,
+        type text
+    ),
+
+    #"Geänderter Typ1" = Table.TransformColumnTypes(#"Hinzugefügte benutzerdefinierte Spalte1", {{"Achse", type text}}),
+
+    #"Hinzugefügte benutzerdefinierte Spalte2" = Table.AddColumn(
+        #"Geänderter Typ1",
+        "Nest",
+        each if [AchseNest] = null then null else Text.End(Text.From([AchseNest]), 1),
+        type text
+    ),
+
+    #"Geänderter Typ3" = Table.TransformColumnTypes(#"Hinzugefügte benutzerdefinierte Spalte2", {{"Nest", type text}}),
+
+    #"Ersetzter Wert5" = Table.ReplaceValue(#"Geänderter Typ3", "1", "S1", Replacer.ReplaceText, {"String"}),
+    #"Ersetzter Wert6" = Table.ReplaceValue(#"Ersetzter Wert5", "2", "S2", Replacer.ReplaceText, {"String"}),
+    #"Ersetzter Wert7" = Table.ReplaceValue(#"Ersetzter Wert6", "1", "C1", Replacer.ReplaceText, {"Camera"}),
+    #"Ersetzter Wert8" = Table.ReplaceValue(#"Ersetzter Wert7", "2", "C2", Replacer.ReplaceText, {"Camera"}),
+
+    #"Duplizierte Spalte" = Table.DuplicateColumn(#"Ersetzter Wert8", "DMC", "DMC - Kopie"),
+
+    #"Spalte nach Position teilen" = Table.SplitColumn(
+        #"Duplizierte Spalte",
+        "DMC - Kopie",
+        Splitter.SplitTextByPositions({0, 12}, false),
+        {"DMC - Kopie.1", "DMC - Kopie.2"}
+    ),
+
+    // DMC-Teile robust in Zahlen wandeln
+    #"DMC Teile als Zahl" = Table.TransformColumns(
+        #"Spalte nach Position teilen",
+        {
+            {"DMC - Kopie.1", each try Int64.From(_) otherwise null, Int64.Type},
+            {"DMC - Kopie.2", each try Int64.From(_) otherwise null, Int64.Type}
+        }
+    ),
+
+    #"Hinzugefügte benutzerdefinierte Spalte3" = Table.AddColumn(
+        #"DMC Teile als Zahl",
+        "Modul Camera ",
+        each
+            (if [Modul] = null then "" else Text.From([Modul])) & ";" &
+            (if [Camera] = null then "" else Text.From([Camera])),
+        type text
+    ),
+
+    #"Hinzugefügte benutzerdefinierte Spalte4" = Table.AddColumn(
+        #"Hinzugefügte benutzerdefinierte Spalte3",
+        "Modul,camera,Lubra-Modul_Coil",
+        each
+            (if [Modul] = null then "" else Text.From([Modul])) & ";" &
+            (if [Camera] = null then "" else Text.From([Camera])) & ";" &
+            (
+                if [M1X_Nest] = "1" or [M1X_Nest] = "2" then "Coil links"
+                else if [M1X_Nest] = "3" or [M1X_Nest] = "4" then "Coil rechts"
+                else ""
+            ),
+        type text
+    ),
+
+    #"Geänderter Typ5" = Table.TransformColumnTypes(#"Hinzugefügte benutzerdefinierte Spalte4", {{"Modul,camera,Lubra-Modul_Coil", type text}}),
+
+    #"Hinzugefügte benutzerdefinierte Spalte5" = Table.AddColumn(
+        #"Geänderter Typ5",
+        "Coil",
+        each
+            if [M1X_Nest] = "1" or [M1X_Nest] = "2" then "Coil links"
+            else if [M1X_Nest] = "3" or [M1X_Nest] = "4" then "Coil rechts"
+            else "",
+        type text
+    ),
+
+    #"Gefilterte Zeilen4" = Table.SelectRows(
+        #"Hinzugefügte benutzerdefinierte Spalte5",
+        each [DMC] <> null and not Text.StartsWith(Text.From([DMC]), "000")
+    ),
+
+    #"Hinzugefügte benutzerdefinierte Spalte6" = Table.AddColumn(
+        #"Gefilterte Zeilen4",
+        "Modul 2te Ebene",
+        each if [Top group] = "Lubra" then [M3X] else null,
+        type text
+    ),
+
+    #"Hinzugefügte benutzerdefinierte Spalte7" = Table.AddColumn(
+        #"Hinzugefügte benutzerdefinierte Spalte6",
+        "AchseNest 2te Ebene",
+        each if [Top group] = "Lubra" then [M3X_Nest] else null,
+        type text
+    )
+in
+    #"Hinzugefügte benutzerdefinierte Spalte7"
